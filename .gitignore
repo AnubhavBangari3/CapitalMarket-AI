@@ -1,0 +1,85 @@
+# =========================
+# FRONTEND (Next.js)
+# =========================
+
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+
+# Logs
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/pnpm-debug.log*
+
+# Env files
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.production.local
+
+# =========================
+# BACKEND (Django)
+# =========================
+
+backend/env/
+backend/venv/
+backend/__pycache__/
+backend/*.pyc
+backend/db.sqlite3
+
+# Django static/media
+backend/staticfiles/
+backend/media/
+
+# =========================
+# PYTHON
+# =========================
+
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# =========================
+# IDE / EDITOR
+# =========================
+
+.vscode/
+.idea/
+
+# =========================
+# OS FILES
+# =========================
+
+.DS_Store
+Thumbs.db
+
+# =========================
+# ENVIRONMENT VARIABLES
+# =========================
+
+.env
+.env.*
+
+# =========================
+# TEST / COVERAGE
+# =========================
+
+.coverage
+htmlcov/
+.pytest_cache/
+
+# =========================
+# TYPESCRIPT
+# =========================
+
+*.tsbuildinfo
+
+# =========================
+# MISC
+# =========================
+
+dist/
+coverage/
