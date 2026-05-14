@@ -7,10 +7,23 @@ import UploadBox, {
 } from "../../components/upload/UploadBox";
 
 import UploadSummary from "../../components/upload/UploadSummary";
+import { uploadSwiftFile } from "../../lib/api";
+
+type UploadApiResponse = {
+  message: string;
+  file_id: number;
+  filename: string;
+  status: string;
+};
 
 export default function UploadPage() {
   const [uploadedFile, setUploadedFile] =
     useState<UploadedFile | null>(null);
+
+  const [apiResponse, setApiResponse] =
+    useState<UploadApiResponse | null>(null);
+
+  const [error, setError] = useState<string>("");
 
   const [status, setStatus] = useState<
     | "idle"
@@ -19,24 +32,51 @@ export default function UploadPage() {
     | "completed"
   >("idle");
 
-  const handleFileUpload = (
-    file: UploadedFile
-  ) => {
+  const handleFileUpload = (file: UploadedFile) => {
     setUploadedFile(file);
-
+    setApiResponse(null);
+    setError("");
     setStatus("uploaded");
   };
 
-  const handleStartAnalysis = () => {
+  const handleStartAnalysis = async () => {
     if (!uploadedFile) {
+      setError("Please select a SWIFT file first.");
       return;
     }
 
-    setStatus("processing");
+    const selectedFile = (uploadedFile as UploadedFile & {
+      file?: File;
+      rawFile?: File;
+      originalFile?: File;
+    }).file ||
+      (uploadedFile as UploadedFile & { rawFile?: File }).rawFile ||
+      (uploadedFile as UploadedFile & { originalFile?: File }).originalFile;
 
-    setTimeout(() => {
+    if (!selectedFile) {
+      setError(
+        "Native File object not found. Please pass the browser File object from UploadBox."
+      );
+      return;
+    }
+
+    try {
+      setStatus("processing");
+      setError("");
+      setApiResponse(null);
+
+      const result = await uploadSwiftFile(selectedFile);
+
+      setApiResponse(result);
       setStatus("completed");
-    }, 2500);
+    } catch (err) {
+      setStatus("uploaded");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "File upload failed. Please try again."
+      );
+    }
   };
 
   return (
@@ -50,8 +90,7 @@ export default function UploadPage() {
       </h1>
 
       <p className="text-slate-600 mt-3">
-        Upload SWIFT messages for
-        AI-powered settlement failure
+        Upload SWIFT messages for AI-powered settlement failure
         investigation.
       </p>
 
@@ -61,10 +100,15 @@ export default function UploadPage() {
             uploadedFile={uploadedFile}
             status={status}
             onFileUpload={handleFileUpload}
-            onStartAnalysis={
-              handleStartAnalysis
-            }
+            onStartAnalysis={handleStartAnalysis}
           />
+
+          {error && (
+            <div className="mt-4 rounded-xl bg-red-50 border border-red-200 p-4">
+              <p className="font-medium text-red-700">Upload failed</p>
+              <p className="text-red-600 mt-1">{error}</p>
+            </div>
+          )}
         </div>
 
         <UploadSummary
@@ -73,41 +117,37 @@ export default function UploadPage() {
         />
       </div>
 
-      {status === "completed" && (
+      {status === "completed" && apiResponse && (
         <div className="mt-8 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
           <h2 className="text-2xl font-bold text-slate-900">
-            AI Investigation Result
+            Upload Completed
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
             <Result
-              title="Detected Issue"
-              value="SSI Mismatch"
+              title="File ID"
+              value={String(apiResponse.file_id)}
             />
 
             <Result
-              title="Severity"
-              value="High"
+              title="Filename"
+              value={apiResponse.filename}
             />
 
             <Result
-              title="Action"
-              value="Escalate to Ops"
+              title="Status"
+              value={apiResponse.status}
             />
           </div>
 
-          <div className="mt-6 rounded-xl bg-red-50 border border-red-200 p-5">
-            <p className="font-semibold text-red-700">
-              Root Cause Analysis
+          <div className="mt-6 rounded-xl bg-green-50 border border-green-200 p-5">
+            <p className="font-semibold text-green-700">
+              {apiResponse.message}
             </p>
 
-            <p className="text-red-600 mt-2">
-              Counterparty settlement
-              instruction does not
-              match registered SSI.
-              Validate SSI details and
-              trigger operations
-              escalation.
+            <p className="text-green-600 mt-2">
+              The SWIFT file has been uploaded to the Django DRF backend
+              successfully. This completes the frontend-to-backend upload flow.
             </p>
           </div>
         </div>
@@ -129,7 +169,7 @@ function Result({
         {title}
       </p>
 
-      <p className="text-slate-900 font-bold text-lg mt-1">
+      <p className="text-slate-900 font-bold text-lg mt-1 break-words">
         {value}
       </p>
     </div>
