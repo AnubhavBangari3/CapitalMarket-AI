@@ -12,6 +12,9 @@ export type UploadedFile = {
   size: number;
   type: string;
   uploadedAt: string;
+
+  // Important: keep the actual browser File object for backend upload
+  file: File;
 };
 
 type Props = {
@@ -50,6 +53,9 @@ export default function UploadBox({
           ?.toUpperCase() || "UNKNOWN",
 
       uploadedAt: new Date().toLocaleString(),
+
+      // This is required for FormData upload
+      file,
     });
   };
 
