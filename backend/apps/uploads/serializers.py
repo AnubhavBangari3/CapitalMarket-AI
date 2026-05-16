@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from .models import UploadedSwiftFile
+
+from .models import UploadedSwiftFile, Trade
 
 
 class UploadedSwiftFileSerializer(serializers.ModelSerializer):
@@ -33,3 +34,26 @@ class UploadedSwiftFileSerializer(serializers.ModelSerializer):
             file_size=uploaded_file.size,
             status="uploaded",
         )
+
+
+class TradeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Trade
+        fields = [
+            "id",
+            "trade_reference",
+            "isin",
+            "security_name",
+            "trade_date",
+            "settlement_date",
+            "quantity",
+            "settlement_amount",
+            "currency",
+            "counterparty_bic",
+            "custody_account",
+            "cash_account",
+            "settlement_direction",
+            "payment_type",
+            "trade_status",
+            "created_at",
+        ]
