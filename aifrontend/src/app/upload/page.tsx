@@ -70,6 +70,7 @@ export default function UploadPage() {
     status === "completed" || status === "duplicate";
 
   const investigation = apiResponse?.investigation;
+  const actions = apiResponse?.orchestration?.actions_triggered || [];
 
   return (
     <div>
@@ -82,7 +83,7 @@ export default function UploadPage() {
       </h1>
 
       <p className="text-slate-600 mt-3">
-        Upload SWIFT settlement messages for AI investigation.
+        Upload SWIFT settlement messages for AI investigation and action orchestration.
       </p>
 
       {isDuplicate && apiResponse && (
@@ -181,7 +182,7 @@ export default function UploadPage() {
             >
               {isDuplicate
                 ? `${apiResponse.message_type} already exists with transaction reference ${apiResponse.transaction_ref}.`
-                : "SWIFT file uploaded, parsed, and investigated successfully."}
+                : "SWIFT file uploaded, parsed, investigated, and orchestrated successfully."}
             </p>
           </div>
 
@@ -216,6 +217,46 @@ export default function UploadPage() {
                 <p className="text-slate-900 font-semibold mt-1">
                   {investigation.recommended_action}
                 </p>
+              </div>
+            </div>
+          )}
+
+          {actions.length > 0 && (
+            <div className="mt-6 rounded-xl bg-blue-50 border border-blue-200 p-5">
+              <p className="font-bold text-blue-900 text-xl">
+                Action Orchestrator
+              </p>
+
+              <p className="mt-2 text-blue-800">
+                AI triggered {actions.length} operational action
+                {actions.length > 1 ? "s" : ""} across enterprise systems.
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
+                {actions.map((action) => (
+                  <div
+                    key={action.id}
+                    className="rounded-xl bg-white border border-blue-100 p-4"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-blue-900 font-bold">
+                        {action.target_system}
+                      </p>
+
+                      <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-bold text-green-700">
+                        {action.status}
+                      </span>
+                    </div>
+
+                    <p className="mt-3 text-slate-900 font-semibold">
+                      {action.title}
+                    </p>
+
+                    <p className="mt-2 text-sm text-slate-500">
+                      {action.external_reference || action.action_type}
+                    </p>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -292,7 +333,9 @@ function Result({
 }) {
   return (
     <div className="rounded-xl bg-slate-50 border border-slate-200 p-4">
-      <p className="text-slate-500 text-sm">{title}</p>
+      <p className="text-slate-500 text-sm">
+        {title}
+      </p>
 
       <p className="text-slate-900 font-bold text-lg mt-1 break-words">
         {value}

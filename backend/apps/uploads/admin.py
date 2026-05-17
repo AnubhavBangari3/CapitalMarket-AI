@@ -1,5 +1,5 @@
 from django.contrib import admin
-from . models import UploadedSwiftFile,SWIFTMessage,Trade,SSIInstruction,SecurityHolding,CashBalance
+from . models import UploadedSwiftFile,SWIFTMessage,Trade,SSIInstruction,SecurityHolding,CashBalance,OrchestratedAction,InvestigationResult,AuditLog
 # Register your models here.
 
 admin.site.register(UploadedSwiftFile)
@@ -8,3 +8,6 @@ admin.site.register(Trade)
 admin.site.register(SSIInstruction)
 admin.site.register(SecurityHolding)
 admin.site.register(CashBalance)
+admin.site.register(InvestigationResult)
+admin.site.register(OrchestratedAction)
+admin.site.register(AuditLog)

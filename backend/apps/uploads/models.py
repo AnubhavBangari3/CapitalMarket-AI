@@ -6,6 +6,7 @@ class UploadedSwiftFile(models.Model):
         ("uploaded", "Uploaded"),
         ("processing", "Processing"),
         ("parsed", "Parsed"),
+        ("duplicate", "Duplicate"),
         ("failed", "Failed"),
     ]
 
@@ -204,7 +205,6 @@ class Trade(models.Model):
 
 class SSIInstruction(models.Model):
     counterparty_bic = models.CharField(max_length=20, db_index=True)
-
     safekeeping_account = models.CharField(max_length=100)
 
     delivering_agent = models.CharField(max_length=20, blank=True, null=True)
@@ -226,7 +226,6 @@ class SSIInstruction(models.Model):
 
 class SecurityHolding(models.Model):
     isin = models.CharField(max_length=20, db_index=True)
-
     account_number = models.CharField(max_length=100)
 
     available_quantity = models.DecimalField(
@@ -255,7 +254,6 @@ class SecurityHolding(models.Model):
 
 class CashBalance(models.Model):
     account_number = models.CharField(max_length=100)
-
     currency = models.CharField(max_length=3)
 
     available_balance = models.DecimalField(
@@ -274,9 +272,9 @@ class CashBalance(models.Model):
 
     def __str__(self):
         return f"{self.account_number} - {self.currency}"
-    
-class InvestigationResult(models.Model):
 
+
+class InvestigationResult(models.Model):
     SEVERITY_CHOICES = [
         ("LOW", "Low"),
         ("MEDIUM", "Medium"),
@@ -291,7 +289,6 @@ class InvestigationResult(models.Model):
     )
 
     root_cause = models.CharField(max_length=255)
-
     reason_category = models.CharField(max_length=100)
 
     severity = models.CharField(
@@ -306,12 +303,143 @@ class InvestigationResult(models.Model):
     )
 
     ai_summary = models.TextField(blank=True, null=True)
-
     recommended_action = models.TextField(blank=True, null=True)
-
     investigation_data = models.JSONField(default=dict, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.swift_message.transaction_ref} - {self.root_cause}"
+
+
+class OrchestratedAction(models.Model):
+    ACTION_TYPE_CHOICES = [
+        ("CREATE_JIRA_TICKET", "Create Jira Ticket"),
+        ("SEND_TEAMS_ALERT", "Send Teams Alert"),
+        ("SEND_EMAIL_ESCALATION", "Send Email Escalation"),
+    ]
+
+    TARGET_SYSTEM_CHOICES = [
+        ("JIRA", "Jira"),
+        ("TEAMS", "Microsoft Teams"),
+        ("EMAIL", "Email"),
+    ]
+
+    STATUS_CHOICES = [
+        ("PENDING", "Pending"),
+        ("COMPLETED", "Completed"),
+        ("FAILED", "Failed"),
+    ]
+
+    investigation_result = models.ForeignKey(
+        InvestigationResult,
+        on_delete=models.CASCADE,
+        related_name="orchestrated_actions"
+    )
+
+    action_type = models.CharField(
+        max_length=100,
+        choices=ACTION_TYPE_CHOICES
+    )
+
+    target_system = models.CharField(
+        max_length=50,
+        choices=TARGET_SYSTEM_CHOICES
+    )
+
+    title = models.CharField(max_length=255)
+    description = models.TextField()
+    severity = models.CharField(max_length=20)
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="COMPLETED"
+    )
+
+    external_reference = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True
+    )
+
+    payload = models.JSONField(default=dict, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.target_system} - {self.action_type} - {self.status}"
+
+
+class AuditLog(models.Model):
+    SYSTEM_CHOICES = [
+        ("UPLOAD", "Upload Service"),
+        ("AI_ENGINE", "AI Engine"),
+        ("ORCHESTRATOR", "Action Orchestrator"),
+        ("JIRA", "Jira"),
+        ("TEAMS", "Microsoft Teams"),
+        ("EMAIL", "Email"),
+    ]
+
+    STATUS_CHOICES = [
+        ("SUCCESS", "Success"),
+        ("FAILED", "Failed"),
+        ("SKIPPED", "Skipped"),
+        ("INFO", "Info"),
+    ]
+
+    swift_message = models.ForeignKey(
+        SWIFTMessage,
+        on_delete=models.CASCADE,
+        related_name="audit_logs",
+        blank=True,
+        null=True
+    )
+
+    investigation_result = models.ForeignKey(
+        InvestigationResult,
+        on_delete=models.CASCADE,
+        related_name="audit_logs",
+        blank=True,
+        null=True
+    )
+
+    orchestrated_action = models.ForeignKey(
+        OrchestratedAction,
+        on_delete=models.CASCADE,
+        related_name="audit_logs",
+        blank=True,
+        null=True
+    )
+
+    action = models.CharField(max_length=255)
+
+    system = models.CharField(
+        max_length=50,
+        choices=SYSTEM_CHOICES
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="SUCCESS"
+    )
+
+    severity = models.CharField(max_length=20, blank=True, null=True)
+
+    message = models.TextField(blank=True, null=True)
+
+    metadata = models.JSONField(default=dict, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+        indexes = [
+            models.Index(fields=["system"]),
+            models.Index(fields=["status"]),
+            models.Index(fields=["created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.system} - {self.action} - {self.status}"

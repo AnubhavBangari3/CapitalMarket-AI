@@ -13,6 +13,7 @@ export default function UploadSummary({
   apiResponse = null,
 }: Props) {
   const investigation = apiResponse?.investigation;
+  const actions = apiResponse?.orchestration?.actions_triggered || [];
 
   const statusLabel =
     status === "duplicate"
@@ -69,6 +70,41 @@ export default function UploadSummary({
         </div>
       )}
 
+      {actions.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+          <h2 className="text-2xl font-bold text-slate-900 mb-6">
+            Action Orchestrator
+          </h2>
+
+          <div className="space-y-4">
+            {actions.map((action) => (
+              <div
+                key={action.id}
+                className="rounded-xl bg-slate-50 border border-slate-200 p-4"
+              >
+                <div className="flex items-center justify-between gap-4">
+                  <p className="font-bold text-slate-900">
+                    {action.target_system}
+                  </p>
+
+                  <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-bold text-green-700">
+                    {action.status}
+                  </span>
+                </div>
+
+                <p className="mt-2 text-sm font-semibold text-slate-700">
+                  {action.title}
+                </p>
+
+                <p className="mt-1 text-xs text-slate-500">
+                  {action.action_type}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
         <h2 className="text-2xl font-bold text-slate-900 mb-6">
           Agent Steps
@@ -93,7 +129,9 @@ export default function UploadSummary({
 
         <Step title="Investigation completed" active={!!investigation} />
 
-        <Step title="RCA ready" active={!!investigation} />
+        <Step title="Actions orchestrated" active={actions.length > 0} />
+
+        <Step title="Jira / Teams / Email triggered" active={actions.length > 0} />
       </div>
     </div>
   );
