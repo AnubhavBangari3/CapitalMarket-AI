@@ -42,22 +42,17 @@ class SwiftParser:
     @staticmethod
     def detect_message_type(raw_message):
         match = re.search(r"\{2:I(\d{3})", raw_message)
-        if match:
-            return f"MT{match.group(1)}"
-        return "UNKNOWN"
+        return f"MT{match.group(1)}" if match else "UNKNOWN"
 
     @staticmethod
     def extract_field(pattern, text, group=1):
         match = re.search(pattern, text, re.MULTILINE)
-        if match:
-            return match.group(group).strip()
-        return None
+        return match.group(group).strip() if match else None
 
     @staticmethod
     def parse_date(date_str):
         if not date_str:
             return None
-
         try:
             return datetime.strptime(date_str, "%Y%m%d").date()
         except ValueError:
@@ -67,12 +62,28 @@ class SwiftParser:
     def parse_decimal(value):
         if not value:
             return None
-
         try:
-            cleaned_value = value.replace(",", "").strip()
-            return Decimal(cleaned_value)
+            return Decimal(value.replace(",", "").strip())
         except (InvalidOperation, AttributeError):
             return None
+
+    @staticmethod
+    def clean_bic(raw_bic):
+        if not raw_bic:
+            return None
+
+        raw_bic = raw_bic.strip()
+
+        if len(raw_bic) >= 12:
+            return raw_bic[:12]
+
+        if len(raw_bic) >= 11:
+            return raw_bic[:11]
+
+        if len(raw_bic) >= 8:
+            return raw_bic[:8]
+
+        return raw_bic
 
     @classmethod
     def parse(cls, uploaded_file, raw_message):
@@ -88,15 +99,18 @@ class SwiftParser:
             },
         )
 
-        sender_bic = cls.extract_field(
+        sender_bic_raw = cls.extract_field(
             r"\{1:F01([A-Z0-9]+)",
             raw_message
         )
 
-        receiver_bic = cls.extract_field(
+        receiver_bic_raw = cls.extract_field(
             r"\{2:I\d{3}([A-Z0-9]+)",
             raw_message
         )
+
+        sender_bic = cls.clean_bic(sender_bic_raw)
+        receiver_bic = cls.clean_bic(receiver_bic_raw)
 
         transaction_ref = cls.extract_field(
             r":20C::SEME//([^\n\r]+)",
@@ -114,24 +128,15 @@ class SwiftParser:
         )
 
         preparation_date = cls.parse_date(
-            cls.extract_field(
-                r":98A::PREP//(\d{8})",
-                raw_message
-            )
+            cls.extract_field(r":98A::PREP//(\d{8})", raw_message)
         )
 
         trade_date = cls.parse_date(
-            cls.extract_field(
-                r":98A::TRAD//(\d{8})",
-                raw_message
-            )
+            cls.extract_field(r":98A::TRAD//(\d{8})", raw_message)
         )
 
         settlement_date = cls.parse_date(
-            cls.extract_field(
-                r":98A::SETT//(\d{8})",
-                raw_message
-            )
+            cls.extract_field(r":98A::SETT//(\d{8})", raw_message)
         )
 
         settlement_status = cls.extract_field(
@@ -198,7 +203,8 @@ class SwiftParser:
 
         amount_match = re.search(
             r":19A::SETT//([A-Z]{3})([\d,\.]+)",
-            raw_message
+            raw_message,
+            re.MULTILINE
         )
 
         currency = None
@@ -241,7 +247,7 @@ class SwiftParser:
             "narrative_reason": narrative_reason,
         }
 
-        swift_message = SWIFTMessage.objects.create(
+        return SWIFTMessage.objects.create(
             uploaded_file=uploaded_file,
             message_type=message_type,
             sender_bic=sender_bic,
@@ -271,5 +277,3 @@ class SwiftParser:
             raw_message=raw_message,
             parsed_json=parsed_data,
         )
-
-        return swift_message
