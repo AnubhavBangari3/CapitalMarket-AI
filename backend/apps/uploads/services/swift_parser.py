@@ -6,59 +6,28 @@ from apps.uploads.models import SWIFTMessage
 
 
 class SwiftParser:
-
     MESSAGE_TYPE_METADATA = {
-        "MT544": {
-            "related_instruction": "MT540",
-            "description": "Receive Free Confirmation",
-            "settlement_direction": "RECEIVE",
-            "payment_type": "FREE",
-        },
-        "MT545": {
-            "related_instruction": "MT541",
-            "description": "Receive Against Payment Confirmation",
-            "settlement_direction": "RECEIVE",
-            "payment_type": "AGAINST_PAYMENT",
-        },
-        "MT546": {
-            "related_instruction": "MT542",
-            "description": "Deliver Free Confirmation",
-            "settlement_direction": "DELIVER",
-            "payment_type": "FREE",
-        },
-        "MT547": {
-            "related_instruction": "MT543",
-            "description": "Deliver Against Payment Confirmation",
-            "settlement_direction": "DELIVER",
-            "payment_type": "AGAINST_PAYMENT",
-        },
-        "MT548": {
-            "related_instruction": None,
-            "description": "Settlement Status Advice",
-            "settlement_direction": "UNKNOWN",
-            "payment_type": "UNKNOWN",
-        },
+        "MT544": {"related_instruction": "MT540", "description": "Receive Free Confirmation", "settlement_direction": "RECEIVE", "payment_type": "FREE"},
+        "MT545": {"related_instruction": "MT541", "description": "Receive Against Payment Confirmation", "settlement_direction": "RECEIVE", "payment_type": "AGAINST_PAYMENT"},
+        "MT546": {"related_instruction": "MT542", "description": "Deliver Free Confirmation", "settlement_direction": "DELIVER", "payment_type": "FREE"},
+        "MT547": {"related_instruction": "MT543", "description": "Deliver Against Payment Confirmation", "settlement_direction": "DELIVER", "payment_type": "AGAINST_PAYMENT"},
+        "MT548": {"related_instruction": None, "description": "Settlement Status Advice", "settlement_direction": "UNKNOWN", "payment_type": "UNKNOWN"},
     }
 
     @staticmethod
     def detect_message_type(raw_message):
         match = re.search(r"\{2:I(\d{3})", raw_message)
-        if match:
-            return f"MT{match.group(1)}"
-        return "UNKNOWN"
+        return f"MT{match.group(1)}" if match else "UNKNOWN"
 
     @staticmethod
     def extract_field(pattern, text, group=1):
         match = re.search(pattern, text, re.MULTILINE)
-        if match:
-            return match.group(group).strip()
-        return None
+        return match.group(group).strip() if match else None
 
     @staticmethod
     def parse_date(date_str):
         if not date_str:
             return None
-
         try:
             return datetime.strptime(date_str, "%Y%m%d").date()
         except ValueError:
@@ -68,10 +37,8 @@ class SwiftParser:
     def parse_decimal(value):
         if not value:
             return None
-
         try:
-            cleaned_value = value.replace(",", "").strip()
-            return Decimal(cleaned_value)
+            return Decimal(value.replace(",", "").strip())
         except (InvalidOperation, AttributeError):
             return None
 
@@ -82,16 +49,10 @@ class SwiftParser:
 
         raw_bic = raw_bic.strip()
 
-        # Block 1 LT address:
-        # ICICINBBAXXX0000000000
-        # LT address = ICICINBBAXXX
-        # Operational BIC = ICICINBBXXX
         if len(raw_bic) >= 12 and raw_bic[12:].isdigit():
             lt_address = raw_bic[:12]
             return lt_address[:8] + lt_address[9:12]
 
-        # Block 2 receiver:
-        # CITIUS33XXXXN -> CITIUS33XXX
         if len(raw_bic) >= 12:
             return raw_bic[:11]
 
@@ -117,121 +78,40 @@ class SwiftParser:
             },
         )
 
-        sender_bic_raw = cls.extract_field(
-            r"\{1:F01([A-Z0-9]+)",
-            raw_message
-        )
+        sender_bic = cls.clean_bic(cls.extract_field(r"\{1:F01([A-Z0-9]+)", raw_message))
+        receiver_bic = cls.clean_bic(cls.extract_field(r"\{2:I\d{3}([A-Z0-9]+)", raw_message))
 
-        receiver_bic_raw = cls.extract_field(
-            r"\{2:I\d{3}([A-Z0-9]+)",
-            raw_message
-        )
+        transaction_ref = cls.extract_field(r":20C::SEME//([^\n\r]+)", raw_message)
+        related_ref = cls.extract_field(r":20C::RELA//([^\n\r]+)", raw_message)
+        function_code = cls.extract_field(r":23G:([^\n\r]+)", raw_message)
 
-        sender_bic = cls.clean_bic(sender_bic_raw)
-        receiver_bic = cls.clean_bic(receiver_bic_raw)
+        preparation_date = cls.parse_date(cls.extract_field(r":98A::PREP//(\d{8})", raw_message))
+        trade_date = cls.parse_date(cls.extract_field(r":98A::TRAD//(\d{8})", raw_message))
+        settlement_date = cls.parse_date(cls.extract_field(r":98A::SETT//(\d{8})", raw_message))
 
-        transaction_ref = cls.extract_field(
-            r":20C::SEME//([^\n\r]+)",
-            raw_message
-        )
+        settlement_status = cls.extract_field(r":25D::SETT//([^\n\r]+)", raw_message)
+        matching_status = cls.extract_field(r":25D::MTCH//([^\n\r]+)", raw_message)
 
-        related_ref = cls.extract_field(
-            r":20C::RELA//([^\n\r]+)",
-            raw_message
-        )
+        reason_code = cls.extract_field(r":24B::FAIL//([^\n\r]+)", raw_message)
+        narrative_reason = cls.extract_field(r":70D::REAS//([^\n\r]+)", raw_message)
 
-        function_code = cls.extract_field(
-            r":23G:([^\n\r]+)",
-            raw_message
-        )
+        isin = cls.extract_field(r":35B:ISIN\s+([A-Z0-9]+)", raw_message)
+        security_name = cls.extract_field(r":35B:ISIN\s+[A-Z0-9]+\s*\n([^\n\r]+)", raw_message)
 
-        preparation_date = cls.parse_date(
-            cls.extract_field(
-                r":98A::PREP//(\d{8})",
-                raw_message
-            )
-        )
-
-        trade_date = cls.parse_date(
-            cls.extract_field(
-                r":98A::TRAD//(\d{8})",
-                raw_message
-            )
-        )
-
-        settlement_date = cls.parse_date(
-            cls.extract_field(
-                r":98A::SETT//(\d{8})",
-                raw_message
-            )
-        )
-
-        settlement_status = cls.extract_field(
-            r":25D::SETT//([^\n\r]+)",
-            raw_message
-        )
-
-        matching_status = cls.extract_field(
-            r":25D::MTCH//([^\n\r]+)",
-            raw_message
-        )
-
-        reason_code = cls.extract_field(
-            r":24B::FAIL//([^\n\r]+)",
-            raw_message
-        )
-
-        narrative_reason = cls.extract_field(
-            r":70D::REAS//([^\n\r]+)",
-            raw_message
-        )
-
-        isin = cls.extract_field(
-            r":35B:ISIN\s+([A-Z0-9]+)",
-            raw_message
-        )
-
-        security_name = cls.extract_field(
-            r":35B:ISIN\s+[A-Z0-9]+\s*\n([^\n\r]+)",
-            raw_message
-        )
-
-        quantity_type = cls.extract_field(
-            r":36B::([A-Z0-9]+)//",
-            raw_message
-        )
-
+        quantity_type = cls.extract_field(r":36B::([A-Z0-9]+)//", raw_message)
         quantity = cls.parse_decimal(
-            cls.extract_field(
-                r":36B::[A-Z0-9]+//UNIT/([\d,\.]+)",
-                raw_message
-            )
+            cls.extract_field(r":36B::[A-Z0-9]+//UNIT/([\d,\.]+)", raw_message)
         )
 
-        safekeeping_account = cls.extract_field(
-            r":97A::SAFE//([^\n\r]+)",
-            raw_message
-        )
-
-        delivering_agent = cls.extract_field(
-            r":95P::DEAG//([^\n\r]+)",
-            raw_message
-        )
-
-        receiving_agent = cls.extract_field(
-            r":95P::REAG//([^\n\r]+)",
-            raw_message
-        )
-
-        place_of_settlement = cls.extract_field(
-            r":95P::PSET//([^\n\r]+)",
-            raw_message
-        )
+        safekeeping_account = cls.extract_field(r":97A::SAFE//([^\n\r]+)", raw_message)
+        delivering_agent = cls.extract_field(r":95P::DEAG//([^\n\r]+)", raw_message)
+        receiving_agent = cls.extract_field(r":95P::REAG//([^\n\r]+)", raw_message)
+        place_of_settlement = cls.extract_field(r":95P::PSET//([^\n\r]+)", raw_message)
 
         amount_match = re.search(
             r":19A::SETT//([A-Z]{3})([\d,\.]+)",
             raw_message,
-            re.MULTILINE
+            re.MULTILINE,
         )
 
         currency = None
@@ -274,19 +154,52 @@ class SwiftParser:
             "narrative_reason": narrative_reason,
         }
 
-        existing_message = SWIFTMessage.objects.filter(
+        print("\n================ SWIFT PARSER DEBUG ================")
+        print("Incoming message_type:", message_type)
+        print("Incoming transaction_ref:", transaction_ref)
+        print("Incoming related_ref:", related_ref)
+        print("Incoming settlement_status:", settlement_status)
+        print("Incoming isin:", isin)
+        print("Incoming quantity:", quantity, type(quantity))
+        print("Incoming settlement_amount:", settlement_amount, type(settlement_amount))
+        print("Incoming currency:", currency)
+
+        candidates = SWIFTMessage.objects.filter(
             message_type=message_type,
             transaction_ref=transaction_ref,
-            related_ref=related_ref,
-            settlement_status=settlement_status,
-            isin=isin,
-            quantity=quantity,
-            settlement_amount=settlement_amount,
-            currency=currency,
-        ).first()
+        )
+
+        print("Candidate count by message_type + transaction_ref:", candidates.count())
+
+        for candidate in candidates:
+            print("----------------------------------------")
+            print("Existing ID:", candidate.id)
+            print("Existing message_type:", candidate.message_type)
+            print("Existing transaction_ref:", candidate.transaction_ref)
+            print("Existing related_ref:", candidate.related_ref)
+            print("Existing settlement_status:", candidate.settlement_status)
+            print("Existing isin:", candidate.isin)
+            print("Existing quantity:", candidate.quantity, type(candidate.quantity))
+            print("Existing settlement_amount:", candidate.settlement_amount, type(candidate.settlement_amount))
+            print("Existing currency:", candidate.currency)
+
+            print("Match related_ref:", candidate.related_ref == related_ref)
+            print("Match settlement_status:", candidate.settlement_status == settlement_status)
+            print("Match isin:", candidate.isin == isin)
+            print("Match quantity:", candidate.quantity == quantity)
+            print("Match settlement_amount:", candidate.settlement_amount == settlement_amount)
+            print("Match currency:", candidate.currency == currency)
+
+        existing_message = candidates.first()
 
         if existing_message:
+            print("DUPLICATE FOUND. Returning existing ID:", existing_message.id)
+            print("====================================================\n")
+            existing_message.is_duplicate = True
             return existing_message
+
+        print("NO DUPLICATE FOUND. Creating new SWIFTMessage.")
+        print("====================================================\n")
 
         swift_message = SWIFTMessage.objects.create(
             uploaded_file=uploaded_file,
@@ -319,4 +232,5 @@ class SwiftParser:
             parsed_json=parsed_data,
         )
 
+        swift_message.is_duplicate = False
         return swift_message

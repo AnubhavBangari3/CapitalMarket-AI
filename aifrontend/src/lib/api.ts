@@ -3,9 +3,32 @@ export const API_BASE_URL =
 
 export type UploadSwiftFileResponse = {
   message: string;
+  is_duplicate: boolean;
   file_id: number;
   filename: string;
   status: string;
+  upload_status?: string;
+  swift_message_id?: number;
+  message_type?: string;
+  transaction_ref?: string;
+  related_ref?: string | null;
+  isin?: string | null;
+  security_name?: string | null;
+  quantity?: string | null;
+  settlement_amount?: string | null;
+  currency?: string | null;
+  settlement_status?: string | null;
+  matching_status?: string | null;
+  reason_code?: string | null;
+  narrative_reason?: string | null;
+  settlement_direction?: string | null;
+  payment_type?: string | null;
+  sender_bic?: string | null;
+  receiver_bic?: string | null;
+  delivering_agent?: string | null;
+  receiving_agent?: string | null;
+  place_of_settlement?: string | null;
+  parsed_json?: Record<string, unknown>;
 };
 
 export type Trade = {
@@ -27,9 +50,7 @@ export type Trade = {
   created_at: string;
 };
 
-export async function uploadSwiftFile(
-  file: File
-): Promise<UploadSwiftFileResponse> {
+export async function uploadSwiftFile(file: File): Promise<UploadSwiftFileResponse> {
   const formData = new FormData();
   formData.append("file", file);
 
@@ -40,9 +61,20 @@ export async function uploadSwiftFile(
 
   const data = await response.json().catch(() => null);
 
+  if (response.status === 409 && data) {
+    return {
+      ...data,
+      is_duplicate: true,
+    };
+  }
+
   if (!response.ok) {
     throw new Error(
-      data?.file?.[0] || data?.detail || data?.message || "File upload failed"
+      data?.file?.[0] ||
+        data?.detail ||
+        data?.message ||
+        data?.error ||
+        "File upload failed"
     );
   }
 
