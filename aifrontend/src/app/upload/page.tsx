@@ -15,7 +15,6 @@ import {
 } from "../../lib/api";
 
 export default function UploadPage() {
-
   const [uploadedFile, setUploadedFile] =
     useState<UploadedFile | null>(null);
 
@@ -27,55 +26,34 @@ export default function UploadPage() {
   const [status, setStatus] =
     useState<UploadStatus>("idle");
 
-  const handleFileUpload = (
-    file: UploadedFile
-  ) => {
-
+  const handleFileUpload = (file: UploadedFile) => {
     setUploadedFile(file);
-
     setApiResponse(null);
-
     setError("");
-
     setStatus("uploaded");
   };
 
   const handleStartAnalysis = async () => {
-
     if (!uploadedFile?.file) {
-
-      setError(
-        "Please select a SWIFT file first."
-      );
-
+      setError("Please select a SWIFT file first.");
       return;
     }
 
     try {
-
       setStatus("processing");
-
       setError("");
-
       setApiResponse(null);
 
-      const result = await uploadSwiftFile(
-        uploadedFile.file
-      );
+      const result = await uploadSwiftFile(uploadedFile.file);
 
       setApiResponse(result);
 
       if (result.is_duplicate) {
-
         setStatus("duplicate");
-
       } else {
-
         setStatus("completed");
       }
-
     } catch (err) {
-
       setStatus("failed");
 
       setError(
@@ -86,16 +64,15 @@ export default function UploadPage() {
     }
   };
 
-  const isDuplicate =
-    apiResponse?.is_duplicate === true;
+  const isDuplicate = apiResponse?.is_duplicate === true;
 
   const isFinished =
-    status === "completed" ||
-    status === "duplicate";
+    status === "completed" || status === "duplicate";
+
+  const investigation = apiResponse?.investigation;
 
   return (
     <div>
-
       <p className="text-blue-500 font-medium">
         Capital Markets Operations
       </p>
@@ -109,56 +86,35 @@ export default function UploadPage() {
       </p>
 
       {isDuplicate && apiResponse && (
-
         <div className="mt-6 rounded-2xl border border-yellow-300 bg-yellow-50 p-5 shadow-sm">
-
           <p className="text-xl font-bold text-yellow-900">
             Duplicate SWIFT Message Detected
           </p>
 
           <p className="mt-2 text-yellow-800">
-
-            Message Type:
-            {" "}
-            <b>{apiResponse.message_type}</b>
-
+            Message Type: <b>{apiResponse.message_type}</b>
             <br />
-
-            Transaction Reference:
-            {" "}
-            <b>{apiResponse.transaction_ref}</b>
-
+            Transaction Reference: <b>{apiResponse.transaction_ref}</b>
             <br />
-
-            Existing SWIFT Message ID:
-            {" "}
-            <b>{apiResponse.swift_message_id}</b>
-
+            Existing SWIFT Message ID: <b>{apiResponse.swift_message_id}</b>
             <br />
-
             No duplicate row was created.
           </p>
         </div>
       )}
 
       {error && (
-
         <div className="mt-6 rounded-2xl bg-red-50 border border-red-200 p-5 shadow-sm">
-
           <p className="text-xl font-bold text-red-800">
             Upload Failed
           </p>
 
-          <p className="text-red-700 mt-2">
-            {error}
-          </p>
+          <p className="text-red-700 mt-2">{error}</p>
         </div>
       )}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-10">
-
         <div className="xl:col-span-2">
-
           <UploadBox
             uploadedFile={uploadedFile}
             status={status}
@@ -170,27 +126,20 @@ export default function UploadPage() {
         <UploadSummary
           uploadedFile={uploadedFile}
           status={status}
+          apiResponse={apiResponse}
         />
       </div>
 
       {isFinished && apiResponse && (
-
         <div className="mt-8 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-
           <h2 className="text-2xl font-bold text-slate-900">
-
             {isDuplicate
               ? "Duplicate Message Details"
               : "Upload Completed"}
-
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
-
-            <Result
-              title="File ID"
-              value={String(apiResponse.file_id)}
-            />
+            <Result title="File ID" value={String(apiResponse.file_id)} />
 
             <Result
               title="Filename"
@@ -199,20 +148,12 @@ export default function UploadPage() {
 
             <Result
               title="Status"
-              value={
-                apiResponse.upload_status ||
-                apiResponse.status ||
-                "-"
-              }
+              value={apiResponse.upload_status || apiResponse.status || "-"}
             />
 
             <Result
               title="Duplicate"
-              value={
-                apiResponse.is_duplicate
-                  ? "YES"
-                  : "NO"
-              }
+              value={apiResponse.is_duplicate ? "YES" : "NO"}
             />
           </div>
 
@@ -223,44 +164,68 @@ export default function UploadPage() {
                 : "bg-green-50 border-green-200"
             }`}
           >
-
             <p
               className={`font-semibold ${
-                isDuplicate
-                  ? "text-yellow-900"
-                  : "text-green-700"
+                isDuplicate ? "text-yellow-900" : "text-green-700"
               }`}
             >
-
               {isDuplicate
                 ? "Duplicate SWIFT message detected"
                 : "File uploaded successfully"}
-
             </p>
 
             <p
               className={`mt-2 ${
-                isDuplicate
-                  ? "text-yellow-800"
-                  : "text-green-600"
+                isDuplicate ? "text-yellow-800" : "text-green-600"
               }`}
             >
-
               {isDuplicate
                 ? `${apiResponse.message_type} already exists with transaction reference ${apiResponse.transaction_ref}.`
-                : "SWIFT file uploaded and parsed successfully."}
-
+                : "SWIFT file uploaded, parsed, and investigated successfully."}
             </p>
           </div>
 
-          <div className="mt-6 rounded-xl bg-slate-50 border border-slate-200 p-5">
+          {investigation && (
+            <div className="mt-6 rounded-xl bg-red-50 border border-red-200 p-5">
+              <p className="font-bold text-red-900 text-xl">
+                AI Investigation Result
+              </p>
 
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                <Result
+                  title="Root Cause"
+                  value={investigation.root_cause}
+                />
+
+                <Result
+                  title="Category"
+                  value={investigation.reason_category}
+                />
+
+                <Result
+                  title="Severity"
+                  value={investigation.severity}
+                />
+              </div>
+
+              <div className="mt-5 rounded-xl bg-white border border-red-100 p-4">
+                <p className="text-slate-500 text-sm">
+                  Recommended Action
+                </p>
+
+                <p className="text-slate-900 font-semibold mt-1">
+                  {investigation.recommended_action}
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-6 rounded-xl bg-slate-50 border border-slate-200 p-5">
             <p className="font-semibold text-slate-800">
               Parsed SWIFT Summary
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-
               <Result
                 title="Message Type"
                 value={apiResponse.message_type || "-"}
@@ -285,10 +250,7 @@ export default function UploadPage() {
                 value={apiResponse.related_ref || "-"}
               />
 
-              <Result
-                title="ISIN"
-                value={apiResponse.isin || "-"}
-              />
+              <Result title="ISIN" value={apiResponse.isin || "-"} />
 
               <Result
                 title="Security"
@@ -328,14 +290,9 @@ function Result({
   title: string;
   value: string;
 }) {
-
   return (
-
     <div className="rounded-xl bg-slate-50 border border-slate-200 p-4">
-
-      <p className="text-slate-500 text-sm">
-        {title}
-      </p>
+      <p className="text-slate-500 text-sm">{title}</p>
 
       <p className="text-slate-900 font-bold text-lg mt-1 break-words">
         {value}

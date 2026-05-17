@@ -5,6 +5,7 @@ from rest_framework import status
 from .models import Trade
 from .serializers import UploadedSwiftFileSerializer, TradeSerializer
 from .services.swift_parser import SwiftParser
+from .services.investigation_service import InvestigationService
 
 
 class SwiftFileUploadAPIView(APIView):
@@ -31,6 +32,11 @@ class SwiftFileUploadAPIView(APIView):
 
             is_duplicate = getattr(swift_message, "is_duplicate", False)
 
+            investigation = None
+
+            if not is_duplicate:
+                investigation = InvestigationService.investigate(swift_message)
+
             uploaded_file.status = "duplicate" if is_duplicate else "parsed"
             uploaded_file.save()
 
@@ -38,7 +44,7 @@ class SwiftFileUploadAPIView(APIView):
                 "message": (
                     "Duplicate SWIFT message detected. This message already exists."
                     if is_duplicate
-                    else "File uploaded and parsed successfully"
+                    else "File uploaded, parsed, and investigated successfully"
                 ),
                 "is_duplicate": is_duplicate,
                 "file_id": uploaded_file.id,
@@ -66,6 +72,17 @@ class SwiftFileUploadAPIView(APIView):
                 "receiving_agent": swift_message.receiving_agent,
                 "place_of_settlement": swift_message.place_of_settlement,
                 "parsed_json": swift_message.parsed_json,
+                "investigation": (
+                    {
+                        "root_cause": investigation.root_cause,
+                        "reason_category": investigation.reason_category,
+                        "severity": investigation.severity,
+                        "recommended_action": investigation.recommended_action,
+                        "investigation_data": investigation.investigation_data,
+                    }
+                    if investigation
+                    else None
+                ),
             }
 
             if is_duplicate:
@@ -79,7 +96,7 @@ class SwiftFileUploadAPIView(APIView):
 
             return Response(
                 {
-                    "message": "File uploaded but parsing failed",
+                    "message": "File uploaded but parsing/investigation failed",
                     "file_id": uploaded_file.id,
                     "filename": uploaded_file.original_filename,
                     "upload_status": uploaded_file.status,

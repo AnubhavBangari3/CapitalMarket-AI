@@ -1,11 +1,19 @@
 import { UploadedFile, UploadStatus } from "./UploadBox";
+import { UploadSwiftFileResponse } from "../../lib/api";
 
 type Props = {
   uploadedFile: UploadedFile | null;
   status: UploadStatus;
+  apiResponse?: UploadSwiftFileResponse | null;
 };
 
-export default function UploadSummary({ uploadedFile, status }: Props) {
+export default function UploadSummary({
+  uploadedFile,
+  status,
+  apiResponse = null,
+}: Props) {
+  const investigation = apiResponse?.investigation;
+
   const statusLabel =
     status === "duplicate"
       ? "DUPLICATE"
@@ -25,12 +33,41 @@ export default function UploadSummary({ uploadedFile, status }: Props) {
           <Info label="File Type" value={uploadedFile?.type || "-"} />
           <Info
             label="File Size"
-            value={uploadedFile ? `${(uploadedFile.size / 1024).toFixed(2)} KB` : "-"}
+            value={
+              uploadedFile
+                ? `${(uploadedFile.size / 1024).toFixed(2)} KB`
+                : "-"
+            }
           />
           <Info label="Status" value={statusLabel} />
-          <Info label="Storage Target" value="Azure Blob Storage" />
+          <Info label="Message Type" value={apiResponse?.message_type || "-"} />
+          <Info label="Trade Ref" value={apiResponse?.transaction_ref || "-"} />
         </div>
       </div>
+
+      {investigation && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+          <h2 className="text-2xl font-bold text-slate-900 mb-6">
+            AI Investigation
+          </h2>
+
+          <div className="space-y-5">
+            <Info label="Root Cause" value={investigation.root_cause} />
+            <Info label="Category" value={investigation.reason_category} />
+            <Info label="Severity" value={investigation.severity} />
+          </div>
+
+          <div className="mt-5 rounded-xl bg-slate-50 border border-slate-200 p-4">
+            <p className="text-sm text-slate-500 font-semibold">
+              Recommended Action
+            </p>
+
+            <p className="mt-2 text-slate-900 font-medium">
+              {investigation.recommended_action}
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
         <h2 className="text-2xl font-bold text-slate-900 mb-6">
@@ -38,23 +75,25 @@ export default function UploadSummary({ uploadedFile, status }: Props) {
         </h2>
 
         <Step title="File uploaded" active={!!uploadedFile} />
+
         <Step
           title="Message parsed"
-          active={status === "processing" || status === "completed" || status === "duplicate"}
+          active={
+            status === "processing" ||
+            status === "completed" ||
+            status === "duplicate"
+          }
         />
+
         <Step
           title={status === "duplicate" ? "Duplicate detected" : "Failure detected"}
           active={status === "completed" || status === "duplicate"}
           warning={status === "duplicate"}
         />
-        <Step
-          title="RCA generated"
-          active={status === "completed"}
-        />
-        <Step
-          title="Escalation prepared"
-          active={status === "completed"}
-        />
+
+        <Step title="Investigation completed" active={!!investigation} />
+
+        <Step title="RCA ready" active={!!investigation} />
       </div>
     </div>
   );

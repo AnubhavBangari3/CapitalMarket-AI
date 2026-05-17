@@ -274,3 +274,44 @@ class CashBalance(models.Model):
 
     def __str__(self):
         return f"{self.account_number} - {self.currency}"
+    
+class InvestigationResult(models.Model):
+
+    SEVERITY_CHOICES = [
+        ("LOW", "Low"),
+        ("MEDIUM", "Medium"),
+        ("HIGH", "High"),
+        ("CRITICAL", "Critical"),
+    ]
+
+    swift_message = models.OneToOneField(
+        SWIFTMessage,
+        on_delete=models.CASCADE,
+        related_name="investigation_result"
+    )
+
+    root_cause = models.CharField(max_length=255)
+
+    reason_category = models.CharField(max_length=100)
+
+    severity = models.CharField(
+        max_length=20,
+        choices=SEVERITY_CHOICES,
+        default="MEDIUM"
+    )
+
+    investigation_status = models.CharField(
+        max_length=50,
+        default="COMPLETED"
+    )
+
+    ai_summary = models.TextField(blank=True, null=True)
+
+    recommended_action = models.TextField(blank=True, null=True)
+
+    investigation_data = models.JSONField(default=dict, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.swift_message.transaction_ref} - {self.root_cause}"

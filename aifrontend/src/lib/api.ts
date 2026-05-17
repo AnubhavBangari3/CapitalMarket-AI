@@ -1,6 +1,14 @@
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
 
+export type InvestigationResult = {
+  root_cause: string;
+  reason_category: string;
+  severity: string;
+  recommended_action: string;
+  investigation_data: Record<string, unknown>;
+};
+
 export type UploadSwiftFileResponse = {
   message: string;
   is_duplicate: boolean;
@@ -29,6 +37,7 @@ export type UploadSwiftFileResponse = {
   receiving_agent?: string | null;
   place_of_settlement?: string | null;
   parsed_json?: Record<string, unknown>;
+  investigation?: InvestigationResult | null;
 };
 
 export type Trade = {
