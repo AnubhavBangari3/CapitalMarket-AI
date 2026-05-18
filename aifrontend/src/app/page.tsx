@@ -43,8 +43,15 @@ export default function DashboardPage() {
     loadDashboard();
   }, []);
 
+  const latestInvestigation = investigations[0];
+
   const openTrades = useMemo(
     () => trades.filter((trade) => trade.trade_status === "OPEN").length,
+    [trades]
+  );
+
+  const failedTrades = useMemo(
+    () => trades.filter((trade) => trade.trade_status === "FAILED").length,
     [trades]
   );
 
@@ -61,7 +68,21 @@ export default function DashboardPage() {
     [investigations]
   );
 
-  const latestInvestigation = investigations[0];
+  const totalActions = useMemo(
+    () =>
+      investigations.reduce(
+        (count, item) => count + (item.orchestrated_actions?.length || 0),
+        0
+      ),
+    [investigations]
+  );
+
+  const systemsInvolved = useMemo(
+    () => new Set(auditLogs.map((log) => log.system)).size,
+    [auditLogs]
+  );
+
+  const latestAuditLogs = auditLogs.slice(0, 12);
 
   const jiraAction = latestInvestigation?.orchestrated_actions?.find((action) =>
     action.target_system?.toUpperCase().includes("JIRA")
@@ -79,14 +100,16 @@ export default function DashboardPage() {
     <div>
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
-          <p className="text-blue-500 font-medium">Capital Markets Operations</p>
+          <p className="text-blue-500 font-medium">
+            Capital Markets Operations
+          </p>
 
           <h1 className="text-4xl font-bold text-slate-900 mt-4">
-            AI Settlement Dashboard
+            AI Settlement Command Center
           </h1>
 
           <p className="text-slate-600 mt-3">
-            Monitor settlement failures, RCA status, escalations, and enterprise audit trail.
+            Monitor settlement failures, AI root cause analysis, action orchestration, and audit history.
           </p>
         </div>
 
@@ -99,23 +122,50 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-10">
-        <Card title="Total Trades" value={String(trades.length)} />
-        <Card title="Open Trades" value={String(openTrades)} warning />
-        <Card title="Settled Trades" value={String(settledTrades)} success />
-        <Card title="Risk Cases" value={String(highRiskCases)} danger />
+        <MetricCard title="Total Trades" value={String(trades.length)} />
+        <MetricCard title="Open Trades" value={String(openTrades)} warning />
+        <MetricCard title="Failed Trades" value={String(failedTrades)} danger />
+        <MetricCard title="Settled Trades" value={String(settledTrades)} success />
       </div>
 
-      {loading && <p className="mt-8 text-slate-500">Loading dashboard...</p>}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6">
+        <MetricCard title="AI Investigations" value={String(investigations.length)} />
+        <MetricCard title="High Risk Cases" value={String(highRiskCases)} danger />
+        <MetricCard title="Actions Triggered" value={String(totalActions)} success />
+        <MetricCard title="Systems Involved" value={String(systemsInvolved)} />
+      </div>
 
-      {error && <p className="mt-8 text-red-600 font-medium">{error}</p>}
+      {loading && (
+        <div className="mt-8 rounded-2xl bg-white border border-slate-200 p-6">
+          <p className="text-slate-500">Loading dashboard...</p>
+        </div>
+      )}
+
+      {error && (
+        <div className="mt-8 rounded-2xl bg-red-50 border border-red-200 p-6">
+          <p className="text-red-700 font-semibold">{error}</p>
+        </div>
+      )}
 
       {!loading && !error && (
         <>
           <section className="mt-8 grid grid-cols-1 xl:grid-cols-3 gap-6">
             <div className="xl:col-span-2 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-              <h2 className="text-2xl font-bold text-slate-900">
-                Latest AI Investigation
-              </h2>
+              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-blue-600">
+                    Step 15: RCA + Severity View
+                  </p>
+
+                  <h2 className="text-2xl font-bold text-slate-900 mt-1">
+                    Latest AI Investigation
+                  </h2>
+                </div>
+
+                {latestInvestigation && (
+                  <SeverityBadge severity={latestInvestigation.severity} />
+                )}
+              </div>
 
               {!latestInvestigation ? (
                 <p className="mt-6 text-slate-500">
@@ -123,39 +173,60 @@ export default function DashboardPage() {
                 </p>
               ) : (
                 <div className="mt-6">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span className="text-xl font-bold text-slate-900">
-                      {latestInvestigation.transaction_ref}
-                    </span>
-                    <SeverityBadge severity={latestInvestigation.severity} />
-                    <StatusPill status={latestInvestigation.investigation_status} />
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <InfoBox
+                      label="Transaction Ref"
+                      value={latestInvestigation.transaction_ref}
+                    />
+                    <InfoBox
+                      label="Message Type"
+                      value={latestInvestigation.message_type}
+                    />
+                    <InfoBox
+                      label="Security"
+                      value={latestInvestigation.security_name || "-"}
+                    />
+                    <InfoBox
+                      label="ISIN"
+                      value={latestInvestigation.isin || "-"}
+                    />
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-                    <InfoBox label="Message Type" value={latestInvestigation.message_type} />
-                    <InfoBox label="Root Cause" value={latestInvestigation.root_cause} />
-                    <InfoBox label="Reason Category" value={latestInvestigation.reason_category} />
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                    <InfoBox
+                      label="Root Cause"
+                      value={latestInvestigation.root_cause}
+                    />
+                    <InfoBox
+                      label="Reason Category"
+                      value={latestInvestigation.reason_category}
+                    />
+                    <InfoBox
+                      label="Investigation Status"
+                      value={latestInvestigation.investigation_status}
+                    />
                   </div>
 
-                  <div className="mt-6 rounded-xl bg-slate-50 border border-slate-200 p-5">
-                    <p className="text-sm font-semibold text-slate-500">
-                      AI Recommended Action
+                  <div className="mt-6 rounded-xl bg-red-50 border border-red-200 p-5">
+                    <p className="text-sm font-semibold text-red-700">
+                      AI Root Cause Summary
                     </p>
-                    <p className="mt-2 text-slate-900">
-                      {latestInvestigation.recommended_action || "No action available"}
+
+                    <p className="mt-2 text-slate-900 font-medium">
+                      {latestInvestigation.ai_summary ||
+                        `Trade ${latestInvestigation.transaction_ref} failed due to ${latestInvestigation.root_cause}.`}
                     </p>
                   </div>
 
-                  <div className="mt-6">
-                    <h3 className="font-bold text-slate-900">
-                      Cross-System Orchestration
-                    </h3>
+                  <div className="mt-5 rounded-xl bg-blue-50 border border-blue-200 p-5">
+                    <p className="text-sm font-semibold text-blue-700">
+                      Recommended Action
+                    </p>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-                      {latestInvestigation.orchestrated_actions.map((action) => (
-                        <ActionCard key={action.id} action={action} />
-                      ))}
-                    </div>
+                    <p className="mt-2 text-slate-900 font-medium">
+                      {latestInvestigation.recommended_action ||
+                        "No recommended action available."}
+                    </p>
                   </div>
                 </div>
               )}
@@ -167,14 +238,28 @@ export default function DashboardPage() {
               </h2>
 
               <div className="mt-6 space-y-4">
-                <InfoBox label="Total Audit Events" value={String(auditLogs.length)} />
+                <InfoBox
+                  label="Total Audit Events"
+                  value={String(auditLogs.length)}
+                />
+
                 <InfoBox
                   label="Successful Events"
-                  value={String(auditLogs.filter((log) => log.status === "SUCCESS").length)}
+                  value={String(
+                    auditLogs.filter((log) => log.status === "SUCCESS").length
+                  )}
                 />
+
+                <InfoBox
+                  label="Failed Events"
+                  value={String(
+                    auditLogs.filter((log) => log.status === "FAILED").length
+                  )}
+                />
+
                 <InfoBox
                   label="Systems Involved"
-                  value={String(new Set(auditLogs.map((log) => log.system)).size)}
+                  value={String(systemsInvolved)}
                 />
               </div>
             </div>
@@ -182,17 +267,44 @@ export default function DashboardPage() {
 
           {latestInvestigation && (
             <section className="mt-8 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+              <div>
+                <p className="text-sm font-semibold text-blue-600">
+                  Step 13: Dashboard Timeline
+                </p>
+
+                <h2 className="text-2xl font-bold text-slate-900 mt-1">
+                  AI Agent Workflow
+                </h2>
+
+                <p className="text-slate-600 mt-2">
+                  Visual flow of how the AI agent parsed, investigated, decided, and orchestrated actions.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 xl:grid-cols-8 gap-4 mt-6">
+                <WorkflowStep title="Upload" subtitle="Message received" active />
+                <WorkflowStep title="Parse" subtitle="SWIFT extracted" active />
+                <WorkflowStep title="Detect" subtitle="Failure found" active />
+                <WorkflowStep title="Investigate" subtitle="RCA generated" active />
+                <WorkflowStep title="Classify" subtitle={latestInvestigation.severity} active />
+                <WorkflowStep title="Jira" subtitle={jiraAction?.status || "Created"} active />
+                <WorkflowStep title="Teams" subtitle={teamsAction?.status || "Sent"} active />
+                <WorkflowStep title="Email" subtitle={emailAction?.status || "Sent"} active />
+              </div>
+            </section>
+          )}
+
+          {latestInvestigation && (
+            <section className="mt-8 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                 <div>
                   <p className="text-sm font-semibold text-blue-600">
-                    Step 16: Mock Email / Teams Preview UI
+                    Cross-System Orchestration
                   </p>
+
                   <h2 className="text-2xl font-bold text-slate-900 mt-1">
-                    Escalation Preview
+                    Jira / Teams / Email Actions
                   </h2>
-                  <p className="text-slate-600 mt-2">
-                    Shows exactly what the AI agent created across Jira, Teams, and Email.
-                  </p>
                 </div>
 
                 <SeverityBadge severity={latestInvestigation.severity} />
@@ -208,18 +320,18 @@ export default function DashboardPage() {
 
           <section className="mt-8 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
             <h2 className="text-2xl font-bold text-slate-900">
-              AI Action Timeline
+              Audit Timeline
             </h2>
 
-            {auditLogs.length === 0 ? (
+            {latestAuditLogs.length === 0 ? (
               <p className="mt-6 text-slate-500">No audit logs found yet.</p>
             ) : (
               <div className="mt-6 space-y-5">
-                {auditLogs.slice(0, 12).map((log, index) => (
+                {latestAuditLogs.map((log, index) => (
                   <TimelineItem
                     key={log.id}
                     log={log}
-                    isLast={index === auditLogs.slice(0, 12).length - 1}
+                    isLast={index === latestAuditLogs.length - 1}
                   />
                 ))}
               </div>
@@ -275,6 +387,35 @@ export default function DashboardPage() {
   );
 }
 
+function WorkflowStep({
+  title,
+  subtitle,
+  active,
+}: {
+  title: string;
+  subtitle: string;
+  active?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-xl border p-4 ${
+        active
+          ? "bg-green-50 border-green-200"
+          : "bg-slate-50 border-slate-200"
+      }`}
+    >
+      <div
+        className={`h-3 w-3 rounded-full ${
+          active ? "bg-green-500" : "bg-slate-300"
+        }`}
+      />
+
+      <p className="mt-3 font-bold text-slate-900">{title}</p>
+      <p className="mt-1 text-xs text-slate-500">{subtitle}</p>
+    </div>
+  );
+}
+
 function JiraPreview({
   investigation,
   action,
@@ -295,10 +436,12 @@ function JiraPreview({
           </p>
           <h3 className="mt-2 text-lg font-bold text-slate-900">{ticketId}</h3>
         </div>
+
         <StatusPill status={action?.status || "CREATED"} />
       </div>
 
       <div className="mt-5 space-y-3">
+        <PreviewRow label="Issue Type" value="Settlement Failure" />
         <PreviewRow label="Priority" value={getPriority(investigation.severity)} />
         <PreviewRow label="Severity" value={investigation.severity} />
         <PreviewRow label="Root Cause" value={investigation.root_cause} />
@@ -307,6 +450,7 @@ function JiraPreview({
 
       <div className="mt-5 rounded-xl bg-white border border-slate-200 p-4">
         <p className="text-sm font-semibold text-slate-500">Description</p>
+
         <p className="mt-2 text-sm text-slate-700">
           Trade {investigation.transaction_ref} failed due to{" "}
           {investigation.root_cause}. AI investigation recommends:{" "}
@@ -331,20 +475,23 @@ function TeamsPreview({
           <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">
             Teams Alert Preview
           </p>
+
           <h3 className="mt-2 text-lg font-bold text-slate-900">
             Settlement Alert
           </h3>
         </div>
+
         <StatusPill status={action?.status || "SENT"} />
       </div>
 
       <div className="mt-5 rounded-xl bg-white border border-blue-100 p-4">
         <p className="font-bold text-slate-900">
-          Critical settlement investigation triggered
+          Settlement failure detected
         </p>
+
         <p className="mt-3 text-sm text-slate-700">
-          Trade {investigation.transaction_ref} failed because of{" "}
-          {investigation.root_cause}.
+          Trade <b>{investigation.transaction_ref}</b> failed because of{" "}
+          <b>{investigation.root_cause}</b>.
         </p>
 
         <div className="mt-4 space-y-3">
@@ -354,7 +501,7 @@ function TeamsPreview({
         </div>
       </div>
 
-      <p className="mt-4 text-xs text-blue-700">
+      <p className="mt-4 text-xs font-semibold text-blue-700">
         Channel: #settlement-operations
       </p>
     </div>
@@ -375,10 +522,12 @@ function EmailPreview({
           <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
             Email Escalation Preview
           </p>
+
           <h3 className="mt-2 text-lg font-bold text-slate-900">
-            Ops Escalation
+            Ops Escalation Email
           </h3>
         </div>
+
         <StatusPill status={action?.status || "SENT"} />
       </div>
 
@@ -393,16 +542,17 @@ function EmailPreview({
         </div>
 
         <div className="mt-5 border-t border-slate-200 pt-4">
-          <p className="text-sm text-slate-700">
-            Hello Operations Team,
-          </p>
+          <p className="text-sm text-slate-700">Hello Operations Team,</p>
+
           <p className="mt-3 text-sm text-slate-700">
             AI investigation detected a settlement failure for trade{" "}
             <strong>{investigation.transaction_ref}</strong>.
           </p>
+
           <p className="mt-3 text-sm text-slate-700">
             Root Cause: <strong>{investigation.root_cause}</strong>
           </p>
+
           <p className="mt-3 text-sm text-slate-700">
             Recommended Action: {investigation.recommended_action}
           </p>
@@ -412,7 +562,7 @@ function EmailPreview({
   );
 }
 
-function Card({
+function MetricCard({
   title,
   value,
   danger,
@@ -452,6 +602,7 @@ function InfoBox({ label, value }: { label: string; value: string }) {
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
         {label}
       </p>
+
       <p className="mt-2 font-bold text-slate-900">{value}</p>
     </div>
   );
@@ -462,18 +613,6 @@ function PreviewRow({ label, value }: { label: string; value: string }) {
     <div className="flex items-start justify-between gap-4 text-sm">
       <span className="text-slate-500">{label}</span>
       <span className="text-right font-semibold text-slate-900">{value}</span>
-    </div>
-  );
-}
-
-function ActionCard({ action }: { action: OrchestratedAction }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-      <div className="flex items-center justify-between gap-3">
-        <p className="font-bold text-slate-900">{action.target_system}</p>
-        <StatusPill status={action.status} />
-      </div>
-      <p className="mt-3 text-sm text-slate-600">{action.title}</p>
     </div>
   );
 }
@@ -491,6 +630,7 @@ function TimelineItem({ log, isLast }: { log: AuditLog; isLast: boolean }) {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="font-bold text-slate-900">{log.action}</p>
+
               <p className="mt-1 text-sm text-slate-500">
                 {formatDateTime(log.created_at)}
               </p>
