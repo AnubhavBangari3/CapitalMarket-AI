@@ -7,6 +7,7 @@ import {
   fetchTrades,
   type AuditLog,
   type InvestigationResult,
+  type OrchestratedAction,
   type Trade,
 } from "../lib/api";
 
@@ -62,6 +63,18 @@ export default function DashboardPage() {
 
   const latestInvestigation = investigations[0];
 
+  const jiraAction = latestInvestigation?.orchestrated_actions?.find((action) =>
+    action.target_system?.toUpperCase().includes("JIRA")
+  );
+
+  const teamsAction = latestInvestigation?.orchestrated_actions?.find((action) =>
+    action.target_system?.toUpperCase().includes("TEAMS")
+  );
+
+  const emailAction = latestInvestigation?.orchestrated_actions?.find((action) =>
+    action.target_system?.toUpperCase().includes("EMAIL")
+  );
+
   return (
     <div>
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -106,7 +119,7 @@ export default function DashboardPage() {
 
               {!latestInvestigation ? (
                 <p className="mt-6 text-slate-500">
-                  No investigation found yet. Upload a SWIFT message to generate RCA.
+                  No investigation found yet. Upload a SWIFT settlement message to generate RCA.
                 </p>
               ) : (
                 <div className="mt-6">
@@ -126,7 +139,7 @@ export default function DashboardPage() {
 
                   <div className="mt-6 rounded-xl bg-slate-50 border border-slate-200 p-5">
                     <p className="text-sm font-semibold text-slate-500">
-                      Recommended Action
+                      AI Recommended Action
                     </p>
                     <p className="mt-2 text-slate-900">
                       {latestInvestigation.recommended_action || "No action available"}
@@ -167,6 +180,32 @@ export default function DashboardPage() {
             </div>
           </section>
 
+          {latestInvestigation && (
+            <section className="mt-8 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-blue-600">
+                    Step 16: Mock Email / Teams Preview UI
+                  </p>
+                  <h2 className="text-2xl font-bold text-slate-900 mt-1">
+                    Escalation Preview
+                  </h2>
+                  <p className="text-slate-600 mt-2">
+                    Shows exactly what the AI agent created across Jira, Teams, and Email.
+                  </p>
+                </div>
+
+                <SeverityBadge severity={latestInvestigation.severity} />
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+                <JiraPreview investigation={latestInvestigation} action={jiraAction} />
+                <TeamsPreview investigation={latestInvestigation} action={teamsAction} />
+                <EmailPreview investigation={latestInvestigation} action={emailAction} />
+              </div>
+            </section>
+          )}
+
           <section className="mt-8 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
             <h2 className="text-2xl font-bold text-slate-900">
               AI Action Timeline
@@ -177,7 +216,11 @@ export default function DashboardPage() {
             ) : (
               <div className="mt-6 space-y-5">
                 {auditLogs.slice(0, 12).map((log, index) => (
-                  <TimelineItem key={log.id} log={log} isLast={index === auditLogs.length - 1} />
+                  <TimelineItem
+                    key={log.id}
+                    log={log}
+                    isLast={index === auditLogs.slice(0, 12).length - 1}
+                  />
                 ))}
               </div>
             )}
@@ -232,6 +275,143 @@ export default function DashboardPage() {
   );
 }
 
+function JiraPreview({
+  investigation,
+  action,
+}: {
+  investigation: InvestigationResult;
+  action?: OrchestratedAction;
+}) {
+  const ticketId =
+    action?.external_reference ||
+    `JIRA-${investigation.transaction_ref}-${investigation.reason_category}`;
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Mock Jira Ticket
+          </p>
+          <h3 className="mt-2 text-lg font-bold text-slate-900">{ticketId}</h3>
+        </div>
+        <StatusPill status={action?.status || "CREATED"} />
+      </div>
+
+      <div className="mt-5 space-y-3">
+        <PreviewRow label="Priority" value={getPriority(investigation.severity)} />
+        <PreviewRow label="Severity" value={investigation.severity} />
+        <PreviewRow label="Root Cause" value={investigation.root_cause} />
+        <PreviewRow label="Assigned To" value="Settlement Operations Team" />
+      </div>
+
+      <div className="mt-5 rounded-xl bg-white border border-slate-200 p-4">
+        <p className="text-sm font-semibold text-slate-500">Description</p>
+        <p className="mt-2 text-sm text-slate-700">
+          Trade {investigation.transaction_ref} failed due to{" "}
+          {investigation.root_cause}. AI investigation recommends:{" "}
+          {investigation.recommended_action}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function TeamsPreview({
+  investigation,
+  action,
+}: {
+  investigation: InvestigationResult;
+  action?: OrchestratedAction;
+}) {
+  return (
+    <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">
+            Teams Alert Preview
+          </p>
+          <h3 className="mt-2 text-lg font-bold text-slate-900">
+            Settlement Alert
+          </h3>
+        </div>
+        <StatusPill status={action?.status || "SENT"} />
+      </div>
+
+      <div className="mt-5 rounded-xl bg-white border border-blue-100 p-4">
+        <p className="font-bold text-slate-900">
+          Critical settlement investigation triggered
+        </p>
+        <p className="mt-3 text-sm text-slate-700">
+          Trade {investigation.transaction_ref} failed because of{" "}
+          {investigation.root_cause}.
+        </p>
+
+        <div className="mt-4 space-y-3">
+          <PreviewRow label="Severity" value={investigation.severity} />
+          <PreviewRow label="Message Type" value={investigation.message_type} />
+          <PreviewRow label="Reason" value={investigation.reason_category} />
+        </div>
+      </div>
+
+      <p className="mt-4 text-xs text-blue-700">
+        Channel: #settlement-operations
+      </p>
+    </div>
+  );
+}
+
+function EmailPreview({
+  investigation,
+  action,
+}: {
+  investigation: InvestigationResult;
+  action?: OrchestratedAction;
+}) {
+  return (
+    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+            Email Escalation Preview
+          </p>
+          <h3 className="mt-2 text-lg font-bold text-slate-900">
+            Ops Escalation
+          </h3>
+        </div>
+        <StatusPill status={action?.status || "SENT"} />
+      </div>
+
+      <div className="mt-5 rounded-xl bg-white border border-amber-100 p-4">
+        <div className="space-y-3">
+          <PreviewRow label="To" value="ops@bank.com" />
+          <PreviewRow label="CC" value="treasury@bank.com" />
+          <PreviewRow
+            label="Subject"
+            value={`Settlement Escalation - ${investigation.transaction_ref}`}
+          />
+        </div>
+
+        <div className="mt-5 border-t border-slate-200 pt-4">
+          <p className="text-sm text-slate-700">
+            Hello Operations Team,
+          </p>
+          <p className="mt-3 text-sm text-slate-700">
+            AI investigation detected a settlement failure for trade{" "}
+            <strong>{investigation.transaction_ref}</strong>.
+          </p>
+          <p className="mt-3 text-sm text-slate-700">
+            Root Cause: <strong>{investigation.root_cause}</strong>
+          </p>
+          <p className="mt-3 text-sm text-slate-700">
+            Recommended Action: {investigation.recommended_action}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Card({
   title,
   value,
@@ -277,7 +457,16 @@ function InfoBox({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ActionCard({ action }: { action: { target_system: string; title: string; status: string } }) {
+function PreviewRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-4 text-sm">
+      <span className="text-slate-500">{label}</span>
+      <span className="text-right font-semibold text-slate-900">{value}</span>
+    </div>
+  );
+}
+
+function ActionCard({ action }: { action: OrchestratedAction }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
       <div className="flex items-center justify-between gap-3">
@@ -289,12 +478,12 @@ function ActionCard({ action }: { action: { target_system: string; title: string
   );
 }
 
-function TimelineItem({ log }: { log: AuditLog; isLast: boolean }) {
+function TimelineItem({ log, isLast }: { log: AuditLog; isLast: boolean }) {
   return (
     <div className="flex gap-4">
       <div className="flex flex-col items-center">
         <div className="h-4 w-4 rounded-full bg-blue-600" />
-        <div className="h-full w-px bg-slate-200" />
+        {!isLast && <div className="h-full w-px bg-slate-200" />}
       </div>
 
       <div className="pb-5 flex-1">
@@ -370,6 +559,8 @@ function StatusPill({ status }: { status: string }) {
   const styles: Record<string, string> = {
     SUCCESS: "bg-green-100 text-green-700",
     COMPLETED: "bg-green-100 text-green-700",
+    CREATED: "bg-green-100 text-green-700",
+    SENT: "bg-green-100 text-green-700",
     FAILED: "bg-red-100 text-red-700",
     SKIPPED: "bg-yellow-100 text-yellow-700",
     INFO: "bg-blue-100 text-blue-700",
@@ -392,6 +583,13 @@ function SystemBadge({ system }: { system: string }) {
       {system}
     </span>
   );
+}
+
+function getPriority(severity: string) {
+  if (severity === "CRITICAL") return "P1";
+  if (severity === "HIGH") return "P2";
+  if (severity === "MEDIUM") return "P3";
+  return "P4";
 }
 
 function formatDateTime(value: string) {
