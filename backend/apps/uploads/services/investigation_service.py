@@ -8,7 +8,9 @@ from apps.uploads.models import (
     InvestigationResult,
     Trade,
 )
+
 from apps.uploads.services.audit_logger import AuditLogger
+from apps.uploads.services.agent_workflow import AgentWorkflow
 
 
 class InvestigationService:
@@ -160,13 +162,22 @@ class InvestigationService:
 
     @staticmethod
     def _create_result(swift_message: SWIFTMessage, result: dict):
+        agent_workflow = AgentWorkflow.run(
+            swift_message=swift_message,
+            rule_result=result,
+        )
+
         investigation = InvestigationResult.objects.create(
             swift_message=swift_message,
             root_cause=result["root_cause"],
             reason_category=result["reason_category"],
             severity=result["severity"],
+            ai_summary=agent_workflow["final_agent_summary"],
             recommended_action=result["recommended_action"],
-            investigation_data=result["details"],
+            investigation_data={
+                **result["details"],
+                "agent_workflow": agent_workflow,
+            },
         )
 
         AuditLogger.log_investigation_completed(investigation)
