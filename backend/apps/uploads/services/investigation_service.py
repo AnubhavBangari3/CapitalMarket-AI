@@ -28,6 +28,7 @@ class InvestigationService:
         endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
         api_key = (
             os.getenv("AZURE_OPENAI_API_KEY_1")
+           
         )
         api_version = os.getenv(
             "AZURE_OPENAI_API_VERSION",
@@ -45,10 +46,19 @@ class InvestigationService:
 
     @staticmethod
     def _extract_json(content: str) -> dict:
+        if not content:
+            raise ValueError("Azure OpenAI returned empty content")
+
+        cleaned = content.strip()
+
+        cleaned = re.sub(r"^```json", "", cleaned, flags=re.IGNORECASE).strip()
+        cleaned = re.sub(r"^```", "", cleaned).strip()
+        cleaned = re.sub(r"```$", "", cleaned).strip()
+
         try:
-            return json.loads(content)
+            return json.loads(cleaned)
         except Exception:
-            match = re.search(r"\{.*\}", content, re.DOTALL)
+            match = re.search(r"\{.*\}", cleaned, re.DOTALL)
             if match:
                 return json.loads(match.group(0))
             raise
@@ -113,12 +123,18 @@ Rule Engine Finding:
 - Evidence: {json.dumps(result.get("details", {}), default=str)}
 - Initial Recommended Action: {result["recommended_action"]}
 
-Return JSON ONLY in this exact format:
+IMPORTANT:
+Return ONLY valid JSON.
+Do not use markdown.
+Do not use triple backticks.
+Do not explain outside JSON.
+
+Return this exact JSON structure:
 {{
   "reasoning": "clear RCA explanation in 3-5 sentences",
   "risk_impact": "business/operations risk impact in 2-4 sentences",
   "recommended_action": "specific operational action",
-  "confidence_score": 0
+  "confidence_score": 90
 }}
 """
 
@@ -130,7 +146,8 @@ Return JSON ONLY in this exact format:
                         "role": "system",
                         "content": (
                             "You are an expert AI agent for capital markets settlement "
-                            "operations, SWIFT messages, SSI, cash, securities, and RCA."
+                            "operations, SWIFT messages, SSI, cash, securities, and RCA. "
+                            "Always return strict JSON only."
                         ),
                     },
                     {
@@ -138,12 +155,23 @@ Return JSON ONLY in this exact format:
                         "content": prompt,
                     },
                 ],
-                #temperature=0.2,
                 max_completion_tokens=700,
             )
 
             content = response.choices[0].message.content
-            parsed = InvestigationService._extract_json(content)
+
+            try:
+                parsed = InvestigationService._extract_json(content)
+            except Exception:
+                parsed = {
+                    "reasoning": content or fallback["reasoning"],
+                    "risk_impact": (
+                        "Potential settlement delay, operational follow-up, "
+                        "reconciliation effort, and market exposure."
+                    ),
+                    "recommended_action": result["recommended_action"],
+                    "confidence_score": fallback["confidence_score"],
+                }
 
             return {
                 "reasoning": parsed.get("reasoning") or fallback["reasoning"],
