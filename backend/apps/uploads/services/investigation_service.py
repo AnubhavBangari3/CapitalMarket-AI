@@ -1,4 +1,10 @@
 from decimal import Decimal
+import os
+import json
+import re
+
+from dotenv import load_dotenv
+from openai import AzureOpenAI
 
 from apps.uploads.models import (
     SWIFTMessage,
@@ -12,8 +18,152 @@ from apps.uploads.models import (
 from apps.uploads.services.audit_logger import AuditLogger
 from apps.uploads.services.agent_workflow import AgentWorkflow
 
+load_dotenv()
+
 
 class InvestigationService:
+
+    @staticmethod
+    def _get_azure_client():
+        endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+        api_key = (
+            os.getenv("AZURE_OPENAI_API_KEY_1")
+        )
+        api_version = os.getenv(
+            "AZURE_OPENAI_API_VERSION",
+            "2025-01-01-preview"
+        )
+
+        if not endpoint or not api_key:
+            return None
+
+        return AzureOpenAI(
+            api_key=api_key,
+            api_version=api_version,
+            azure_endpoint=endpoint,
+        )
+
+    @staticmethod
+    def _extract_json(content: str) -> dict:
+        try:
+            return json.loads(content)
+        except Exception:
+            match = re.search(r"\{.*\}", content, re.DOTALL)
+            if match:
+                return json.loads(match.group(0))
+            raise
+
+    @staticmethod
+    def generate_ai_rca(swift_message: SWIFTMessage, result: dict) -> dict:
+        client = InvestigationService._get_azure_client()
+        deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT")
+
+        fallback = {
+            "reasoning": (
+                f"The settlement investigation identified {result['root_cause']} "
+                f"as the primary issue for transaction {swift_message.transaction_ref}. "
+                f"The case is categorized under {result['reason_category']} with "
+                f"{result['severity']} severity."
+            ),
+            "risk_impact": (
+                "Potential settlement delay, operational follow-up, reconciliation effort, "
+                "and possible market/counterparty impact."
+            ),
+            "recommended_action": result["recommended_action"],
+            "confidence_score": (
+                90
+                if result["reason_category"] in ["SSI", "CASH", "SECURITY"]
+                else 75
+            ),
+            "azure_openai_used": False,
+        }
+
+        if not client or not deployment:
+            return fallback
+
+        prompt = f"""
+You are a Capital Markets settlement operations RCA agent.
+
+Analyze the failed settlement and generate an enterprise-grade root cause analysis.
+
+SWIFT / Trade Context:
+- Transaction Ref: {swift_message.transaction_ref}
+- Related Ref: {swift_message.related_ref}
+- Message Type: {swift_message.message_type}
+- ISIN: {swift_message.isin}
+- Security Name: {swift_message.security_name}
+- Quantity: {swift_message.quantity}
+- Settlement Amount: {swift_message.settlement_amount}
+- Currency: {swift_message.currency}
+- Settlement Direction: {swift_message.settlement_direction}
+- Payment Type: {swift_message.payment_type}
+- Settlement Status: {swift_message.settlement_status}
+- Matching Status: {swift_message.matching_status}
+- Reason Code: {swift_message.reason_code}
+- Narrative Reason: {swift_message.narrative_reason}
+- Safekeeping Account: {swift_message.safekeeping_account}
+- Delivering Agent: {swift_message.delivering_agent}
+- Receiving Agent: {swift_message.receiving_agent}
+- Place of Settlement: {swift_message.place_of_settlement}
+
+Rule Engine Finding:
+- Root Cause: {result["root_cause"]}
+- Category: {result["reason_category"]}
+- Severity: {result["severity"]}
+- Evidence: {json.dumps(result.get("details", {}), default=str)}
+- Initial Recommended Action: {result["recommended_action"]}
+
+Return JSON ONLY in this exact format:
+{{
+  "reasoning": "clear RCA explanation in 3-5 sentences",
+  "risk_impact": "business/operations risk impact in 2-4 sentences",
+  "recommended_action": "specific operational action",
+  "confidence_score": 0
+}}
+"""
+
+        try:
+            response = client.chat.completions.create(
+                model=deployment,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are an expert AI agent for capital markets settlement "
+                            "operations, SWIFT messages, SSI, cash, securities, and RCA."
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt,
+                    },
+                ],
+                #temperature=0.2,
+                max_completion_tokens=700,
+            )
+
+            content = response.choices[0].message.content
+            parsed = InvestigationService._extract_json(content)
+
+            return {
+                "reasoning": parsed.get("reasoning") or fallback["reasoning"],
+                "risk_impact": parsed.get("risk_impact") or fallback["risk_impact"],
+                "recommended_action": (
+                    parsed.get("recommended_action")
+                    or fallback["recommended_action"]
+                ),
+                "confidence_score": (
+                    parsed.get("confidence_score")
+                    or fallback["confidence_score"]
+                ),
+                "azure_openai_used": True,
+            }
+
+        except Exception as error:
+            fallback["reasoning"] = (
+                f"{fallback['reasoning']} Azure OpenAI fallback used because: {str(error)}"
+            )
+            return fallback
 
     @staticmethod
     def investigate(swift_message: SWIFTMessage):
@@ -34,7 +184,8 @@ class InvestigationService:
         }
 
         trade = Trade.objects.filter(
-            trade_reference=swift_message.related_ref or swift_message.transaction_ref
+            trade_reference=swift_message.related_ref
+            or swift_message.transaction_ref
         ).first()
 
         ssi_exists = SSIInstruction.objects.filter(
@@ -83,7 +234,8 @@ class InvestigationService:
 
             if (
                 not cash_balance
-                or cash_balance.available_balance < swift_message.settlement_amount
+                or cash_balance.available_balance
+                < swift_message.settlement_amount
             ):
                 available = (
                     cash_balance.available_balance
@@ -162,9 +314,17 @@ class InvestigationService:
 
     @staticmethod
     def _create_result(swift_message: SWIFTMessage, result: dict):
+        ai_rca = InvestigationService.generate_ai_rca(
+            swift_message=swift_message,
+            result=result,
+        )
+
         agent_workflow = AgentWorkflow.run(
             swift_message=swift_message,
-            rule_result=result,
+            rule_result={
+                **result,
+                "recommended_action": ai_rca["recommended_action"],
+            },
         )
 
         investigation = InvestigationResult.objects.create(
@@ -172,10 +332,13 @@ class InvestigationService:
             root_cause=result["root_cause"],
             reason_category=result["reason_category"],
             severity=result["severity"],
-            ai_summary=agent_workflow["final_agent_summary"],
-            recommended_action=result["recommended_action"],
+            ai_summary=ai_rca["reasoning"],
+            recommended_action=ai_rca["recommended_action"],
             investigation_data={
                 **result["details"],
+                "risk_impact": ai_rca["risk_impact"],
+                "confidence_score": ai_rca["confidence_score"],
+                "azure_openai_used": ai_rca["azure_openai_used"],
                 "agent_workflow": agent_workflow,
             },
         )
