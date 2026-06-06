@@ -32,6 +32,7 @@ export default function UploadSummary({
         <div className="space-y-5">
           <Info label="File Name" value={uploadedFile?.name || "-"} />
           <Info label="File Type" value={uploadedFile?.type || "-"} />
+
           <Info
             label="File Size"
             value={
@@ -40,6 +41,7 @@ export default function UploadSummary({
                 : "-"
             }
           />
+
           <Info label="Status" value={statusLabel} />
           <Info label="Message Type" value={apiResponse?.message_type || "-"} />
           <Info label="Trade Ref" value={apiResponse?.transaction_ref || "-"} />
@@ -53,9 +55,20 @@ export default function UploadSummary({
           </h2>
 
           <div className="space-y-5">
-            <Info label="Root Cause" value={investigation.root_cause} />
-            <Info label="Category" value={investigation.reason_category} />
-            <Info label="Severity" value={investigation.severity} />
+            <Info
+              label="Root Cause"
+              value={investigation.root_cause ?? "Not Available"}
+            />
+
+            <Info
+              label="Category"
+              value={investigation.reason_category ?? "Unknown"}
+            />
+
+            <Info
+              label="Severity"
+              value={investigation.severity ?? "LOW"}
+            />
           </div>
 
           <div className="mt-5 rounded-xl bg-slate-50 border border-slate-200 p-4">
@@ -64,7 +77,8 @@ export default function UploadSummary({
             </p>
 
             <p className="mt-2 text-slate-900 font-medium">
-              {investigation.recommended_action}
+              {investigation.recommended_action ??
+                "No recommendation available"}
             </p>
           </div>
         </div>
@@ -122,7 +136,11 @@ export default function UploadSummary({
         />
 
         <Step
-          title={status === "duplicate" ? "Duplicate detected" : "Failure detected"}
+          title={
+            status === "duplicate"
+              ? "Duplicate detected"
+              : "Failure detected"
+          }
           active={status === "completed" || status === "duplicate"}
           warning={status === "duplicate"}
         />
@@ -131,17 +149,29 @@ export default function UploadSummary({
 
         <Step title="Actions orchestrated" active={actions.length > 0} />
 
-        <Step title="Jira / Teams / Email triggered" active={actions.length > 0} />
+        <Step
+          title="Jira / Teams / Email triggered"
+          active={actions.length > 0}
+        />
       </div>
     </div>
   );
 }
 
-function Info({ label, value }: { label: string; value: string }) {
+function Info({
+  label,
+  value,
+}: {
+  label: string;
+  value?: string | null;
+}) {
   return (
     <div className="flex justify-between gap-4 text-base">
       <span className="text-slate-500">{label}</span>
-      <span className="font-semibold text-slate-900 text-right">{value}</span>
+
+      <span className="font-semibold text-slate-900 text-right">
+        {value ?? "Not Available"}
+      </span>
     </div>
   );
 }
@@ -159,7 +189,11 @@ function Step({
     <div className="flex items-center gap-4 pb-5">
       <div
         className={`h-4 w-4 rounded-full ${
-          active ? (warning ? "bg-yellow-500" : "bg-green-500") : "bg-slate-300"
+          active
+            ? warning
+              ? "bg-yellow-500"
+              : "bg-green-500"
+            : "bg-slate-300"
         }`}
       />
 

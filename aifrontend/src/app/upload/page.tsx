@@ -217,17 +217,17 @@ export default function UploadPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
                 <Result
                   title="Root Cause"
-                  value={investigation.root_cause}
+                  value={investigation.root_cause ?? "Not Available"}
                 />
 
                 <Result
                   title="Category"
-                  value={investigation.reason_category}
+                  value={investigation.reason_category ?? "Unknown"}
                 />
 
                 <Result
                   title="Severity"
-                  value={investigation.severity}
+                  value={investigation.severity ?? "LOW"}
                 />
               </div>
 
@@ -237,7 +237,7 @@ export default function UploadPage() {
                 </p>
 
                 <p className="text-slate-900 font-semibold mt-1">
-                  {investigation.recommended_action}
+                  {investigation.recommended_action ?? "No recommendation available"}
                 </p>
               </div>
             </div>
@@ -287,10 +287,10 @@ export default function UploadPage() {
             <EscalationPreview
               transactionRef={apiResponse.transaction_ref || "-"}
               messageType={apiResponse.message_type || "-"}
-              rootCause={investigation.root_cause}
-              category={investigation.reason_category}
-              severity={investigation.severity}
-              recommendedAction={investigation.recommended_action}
+              rootCause={investigation.root_cause ?? "Unknown"}
+              category={investigation.reason_category ?? "Unknown"}
+              severity={investigation.severity ?? "LOW"}
+              recommendedAction={investigation.recommended_action ?? "No recommendation available"}
               jiraAction={jiraAction}
               teamsAction={teamsAction}
               emailAction={emailAction}
@@ -319,10 +319,10 @@ function EscalationPreview({
 }: {
   transactionRef: string;
   messageType: string;
-  rootCause: string;
-  category: string;
-  severity: string;
-  recommendedAction: string;
+  rootCause?: string | null;
+  category?: string | null;
+  severity?: string | null;
+  recommendedAction?: string | null;
   jiraAction?: OrchestratedAction;
   teamsAction?: OrchestratedAction;
   emailAction?: OrchestratedAction;
@@ -390,10 +390,10 @@ function JiraPreview({
   action,
 }: {
   transactionRef: string;
-  rootCause: string;
-  category: string;
-  severity: string;
-  recommendedAction: string;
+  rootCause?: string | null;
+  category?: string | null;
+  severity?: string | null;
+  recommendedAction?: string | null;
   action?: OrchestratedAction;
 }) {
   const ticketId =
@@ -448,10 +448,10 @@ function TeamsPreview({
 }: {
   transactionRef: string;
   messageType: string;
-  rootCause: string;
-  category: string;
-  severity: string;
-  recommendedAction: string;
+  rootCause?: string | null;
+  category?: string | null;
+  severity?: string | null;
+  recommendedAction?: string | null;
   action?: OrchestratedAction;
 }) {
   return (
@@ -514,10 +514,10 @@ function EmailPreview({
 }: {
   transactionRef: string;
   messageType: string;
-  rootCause: string;
-  category: string;
-  severity: string;
-  recommendedAction: string;
+  rootCause?: string | null;
+  category?: string | null;
+  severity?: string | null;
+  recommendedAction?: string | null;
   action?: OrchestratedAction;
 }) {
   return (
@@ -691,7 +691,7 @@ function Result({
   value,
 }: {
   title: string;
-  value: string;
+  value?: string | null;
 }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4">
@@ -700,7 +700,7 @@ function Result({
       </p>
 
       <p className="mt-2 text-slate-900 font-bold">
-        {value}
+        {value ?? "Not Available"}
       </p>
     </div>
   );
@@ -711,19 +711,19 @@ function PreviewRow({
   value,
 }: {
   label: string;
-  value: string;
+  value?: string | null;
 }) {
   return (
     <div className="flex items-start justify-between gap-4 text-sm">
       <span className="text-slate-500">{label}</span>
       <span className="text-right font-semibold text-slate-900">
-        {value}
+        {value ?? "-"}
       </span>
     </div>
   );
 }
 
-function SeverityBadge({ severity }: { severity: string }) {
+function SeverityBadge({ severity }: { severity?: string | null }) {
   const styles: Record<string, string> = {
     LOW: "bg-green-100 text-green-700",
     MEDIUM: "bg-yellow-100 text-yellow-700",
@@ -734,10 +734,10 @@ function SeverityBadge({ severity }: { severity: string }) {
   return (
     <span
       className={`px-3 py-1 rounded-full text-xs font-bold ${
-        styles[severity] || "bg-slate-100 text-slate-700"
+        styles[severity ?? ""] || "bg-slate-100 text-slate-700"
       }`}
     >
-      {severity}
+      {severity ?? "LOW"}
     </span>
   );
 }
@@ -764,7 +764,7 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
-function getPriority(severity: string) {
+function getPriority(severity?: string | null) {
   if (severity === "CRITICAL") return "P1";
   if (severity === "HIGH") return "P2";
   if (severity === "MEDIUM") return "P3";
