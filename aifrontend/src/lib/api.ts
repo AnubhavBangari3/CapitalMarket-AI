@@ -1,6 +1,8 @@
+const AZURE_BACKEND_URL =
+  "https://capitalmarket-backend-anubhav-cqbhh2gpaya4btfb.southeastasia-01.azurewebsites.net";
+
 const rawApiBaseUrl =
-  process.env.NEXT_PUBLIC_API_BASE_URL ||
-  "http://127.0.0.1:8000";
+  process.env.NEXT_PUBLIC_API_BASE_URL || AZURE_BACKEND_URL;
 
 export const API_BASE_URL = rawApiBaseUrl.replace(/\/$/, "");
 

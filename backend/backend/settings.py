@@ -56,12 +56,17 @@ MIDDLEWARE = [
 ]
 
 
-CORS_ALLOWED_ORIGINS = os.getenv(
-    "CORS_ALLOWED_ORIGINS","https://capital-market-ai-frontend-6d7q.vercel.app",
-    "http://localhost:3000"
-).split(",")
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv(
+        "CORS_ALLOWED_ORIGINS",
+        "http://localhost:3000,https://capital-market-ai-frontend-6d7q.vercel.app"
+    ).split(",")
+    if origin.strip()
+]
 
-CORS_ALLOW_ALL_ORIGINS = DEBUG
+CORS_ALLOW_ALL_ORIGINS = False
+
 
 
 ROOT_URLCONF = "backend.urls"
