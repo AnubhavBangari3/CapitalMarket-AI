@@ -1,5 +1,8 @@
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
+const rawApiBaseUrl =
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  "http://127.0.0.1:8000";
+
+export const API_BASE_URL = rawApiBaseUrl.replace(/\/$/, "");
 
 export type AuditLog = {
   id: number;
@@ -105,7 +108,28 @@ export type Trade = {
   created_at: string;
 };
 
-export async function uploadSwiftFile(file: File): Promise<UploadSwiftFileResponse> {
+async function handleResponse<T>(
+  response: Response,
+  fallbackMessage: string
+): Promise<T> {
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(
+      data?.file?.[0] ||
+        data?.detail ||
+        data?.message ||
+        data?.error ||
+        fallbackMessage
+    );
+  }
+
+  return data as T;
+}
+
+export async function uploadSwiftFile(
+  file: File
+): Promise<UploadSwiftFileResponse> {
   const formData = new FormData();
   formData.append("file", file);
 
@@ -133,7 +157,7 @@ export async function uploadSwiftFile(file: File): Promise<UploadSwiftFileRespon
     );
   }
 
-  return data;
+  return data as UploadSwiftFileResponse;
 }
 
 export async function fetchTrades(): Promise<Trade[]> {
@@ -141,11 +165,7 @@ export async function fetchTrades(): Promise<Trade[]> {
     cache: "no-store",
   });
 
-  if (!response.ok) {
-    throw new Error("Failed to fetch trades");
-  }
-
-  return response.json();
+  return handleResponse<Trade[]>(response, "Failed to fetch trades");
 }
 
 export async function fetchInvestigations(): Promise<InvestigationResult[]> {
@@ -153,11 +173,10 @@ export async function fetchInvestigations(): Promise<InvestigationResult[]> {
     cache: "no-store",
   });
 
-  if (!response.ok) {
-    throw new Error("Failed to fetch investigations");
-  }
-
-  return response.json();
+  return handleResponse<InvestigationResult[]>(
+    response,
+    "Failed to fetch investigations"
+  );
 }
 
 export async function fetchAuditLogs(): Promise<AuditLog[]> {
@@ -165,9 +184,5 @@ export async function fetchAuditLogs(): Promise<AuditLog[]> {
     cache: "no-store",
   });
 
-  if (!response.ok) {
-    throw new Error("Failed to fetch audit logs");
-  }
-
-  return response.json();
+  return handleResponse<AuditLog[]>(response, "Failed to fetch audit logs");
 }

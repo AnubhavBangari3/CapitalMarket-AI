@@ -57,7 +57,7 @@ MIDDLEWARE = [
 
 
 CORS_ALLOWED_ORIGINS = os.getenv(
-    "CORS_ALLOWED_ORIGINS",
+    "CORS_ALLOWED_ORIGINS","https://capital-market-ai-frontend-6d7q.vercel.app",
     "http://localhost:3000"
 ).split(",")
 
