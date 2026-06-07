@@ -126,8 +126,6 @@ Extracted Fields:
 
 ## Investigation Engine
 
-Checks:
-
 ### SSI Validation
 
 * Incorrect settlement instructions
@@ -152,7 +150,7 @@ Checks:
 
 ---
 
-## AI RCA Agent
+# AI RCA Agent
 
 Produces:
 
@@ -178,8 +176,6 @@ Update settlement instructions and resend confirmation
 ---
 
 # Cross Service Orchestration
-
-The platform demonstrates orchestration across services.
 
 Services Connected:
 
@@ -310,7 +306,7 @@ npm run dev
 
 ## Backend Deployment
 
-Deploy Django:
+Deploy backend on:
 
 ```text
 Azure App Service
@@ -322,7 +318,7 @@ Run migrations:
 python manage.py migrate
 ```
 
-Seed dummy data:
+Seed sample data:
 
 ```bash
 python manage.py seed_dummy_data
@@ -332,77 +328,115 @@ Restart App Service.
 
 ---
 
-# Azure Database Migration Steps
+# Azure Deployment & Database Setup
 
-Open SSH:
+Backend is already deployed and configured for evaluation.
 
-```text
-Azure Portal
-
-App Service
-
-Development Tools
-
-SSH
-```
-
-Move to application:
-
-```bash
-cd /home/site/wwwroot
-```
-
-Find project:
-
-```bash
-find / -name manage.py
-```
-
-Run:
+Database initialization:
 
 ```bash
 python manage.py migrate
 ```
 
-Seed:
+Expected:
+
+```text
+No migrations to apply.
+```
+
+This confirms schema synchronization.
+
+---
+
+## Dummy Data Seeding
+
+Populate operational sample data:
 
 ```bash
 python manage.py seed_dummy_data
 ```
 
-Restart service.
+Generated Data:
+
+* Trade Records
+* Investigation Results
+* Alerts
+* Dashboard Metrics
+* Audit Logs
+
+Optional Validation:
+
+```bash
+python manage.py shell
+```
+
+```python
+from apps.uploads.models import *
+
+Trade.objects.count()
+InvestigationResult.objects.count()
+AuditLog.objects.count()
+```
+
+---
+
+# Judge Instructions
+
+1. Open live application
+2. Navigate to Upload SWIFT page
+3. Upload sample SWIFT confirmation file
+4. Wait for parsing and AI investigation
+5. Open Investigations page
+6. Review RCA output
+7. Open Alerts page
+8. Open Audit Logs page
+
+Expected Demo Flow:
+
+```text
+Upload
+ ↓
+Parse
+ ↓
+Investigate
+ ↓
+Generate RCA
+ ↓
+Generate Actions
+ ↓
+Audit Trail
+```
+
+---
+
+# Validation Checklist
+
+✔ Upload works
+✔ Investigation works
+✔ Dashboard visible
+✔ Alerts visible
+✔ Audit logs visible
+✔ Azure OpenAI RCA generated
+
+No additional infrastructure setup required for judges.
 
 ---
 
 # Demo Flow For Judges
 
-Step 1:
+Step 1: Upload SWIFT confirmation file
 
-Upload SWIFT confirmation file
+Step 2: Parser extracts settlement data
 
-Step 2:
+Step 3: Investigation engine validates records
 
-Parser extracts settlement data
+Step 4: AI generates RCA
 
-Step 3:
+Step 5: Ticket generated
 
-Investigation engine validates records
+Step 6: Notification preview shown
 
-Step 4:
-
-AI generates RCA
-
-Step 5:
-
-Ticket generated
-
-Step 6:
-
-Notification preview shown
-
-Step 7:
-
-Audit timeline updated
+Step 7: Audit timeline updated
 
 ---
 
@@ -414,6 +448,14 @@ Audit timeline updated
 * Real-time monitoring
 * Multi-agent investigations
 * Production SWIFT adapters
+
+---
+
+# Data Disclaimer
+
+All trade records, SWIFT messages, counterparties, identifiers, alerts, emails, and operational datasets used in this project are synthetically generated for testing and demonstration purposes only.
+
+No real financial or customer data has been used.
 
 ---
 
