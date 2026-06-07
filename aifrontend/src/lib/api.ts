@@ -188,3 +188,17 @@ export async function fetchAuditLogs(): Promise<AuditLog[]> {
 
   return handleResponse<AuditLog[]>(response, "Failed to fetch audit logs");
 }
+
+export async function fetchActions(): Promise<OrchestratedAction[]> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/uploads/orchestrated-actions/`,
+    {
+      cache: "no-store",
+    }
+  );
+
+  return handleResponse<OrchestratedAction[]>(
+    response,
+    "Failed to fetch orchestrated actions"
+  );
+}
